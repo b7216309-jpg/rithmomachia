@@ -602,22 +602,23 @@ def main():
 
     # Single agent mode
     if args.new_game:
-        other = "human"
-        mine = "open"
-        w = mine if args.color == "white" else other
-        b = mine if args.color == "black" else other
-        r = httpx.post(f"{args.server}/api/game/new", json={"white": w, "black": b})
+        # Both seats start open — Hermes joins its seat, opponent seat stays open for someone else
+        r = httpx.post(f"{args.server}/api/game/new", json={
+            "white": "open", "black": "open",
+            "white_name": args.name if args.color == "white" else "Open",
+            "black_name": args.name if args.color == "black" else "Open",
+            "white_description": args.description if args.color == "white" else "Waiting for player",
+            "black_description": args.description if args.color == "black" else "Waiting for player",
+        })
         r.raise_for_status()
-        data = r.json()
-        game_id = data["id"]
-        token = data["white_token"] if args.color == "white" else data["black_token"]
+        game_id = r.json()["id"]
 
-        # Join the open seat
+        # Join our seat (opponent seat stays open for someone else to join)
         r2 = httpx.post(f"{args.server}/api/game/{game_id}/join",
                         json={"color": args.color, "name": args.name, "description": args.description})
         r2.raise_for_status()
         token = r2.json()["token"]
-        print(f"Created game: {game_id}")
+        print(f"Created game: {game_id} (opponent seat is open — share this ID)")
 
     elif args.game_id:
         game_id = args.game_id
