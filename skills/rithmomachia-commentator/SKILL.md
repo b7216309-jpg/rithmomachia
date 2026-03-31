@@ -16,7 +16,7 @@ required_environment_variables: []
 
 ## Game Server API
 
-The game server runs at `http://localhost:8001`. All endpoints are under `/api/game/`.
+The game server runs at `http://localhost:8001` (local) or `https://rithmomachia.onrender.com` (deployed). Try localhost first — if it fails, fall back to the Render URL. All endpoints are under `/api/game/`.
 
 ### Join as Commentator
 ```bash
