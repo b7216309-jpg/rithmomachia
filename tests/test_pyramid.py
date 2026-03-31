@@ -44,17 +44,22 @@ class TestPyramidCreation:
 
 class TestPyramidMovement:
     def test_pyramid_moves_1_2_3(self):
-        """Pyramid in open space can move 1, 2, or 3 squares in each direction."""
+        """Pyramid in open space can move using all component shapes."""
         p = make_pyramid(1, Color.WHITE, 8, 3,
                          [("round", 6), ("triangle", 36), ("square", 49)])
         state = GameState(pieces=[p])
         moves = legal_moves_for_piece(state, p)
         dests = {(m.to_row, m.to_col) for m in moves}
 
-        # Should have moves at distance 1, 2, 3 in all 4 directions
         expected = set()
+        # Round component: 1 square diagonally
+        for dr, dc in [(1, 1), (1, -1), (-1, 1), (-1, -1)]:
+            r, c = 8 + dr, 3 + dc
+            if 1 <= r <= 16 and 0 <= c < 8:
+                expected.add((r, c))
+        # Triangle/Square components: 2 and 3 squares orthogonally
         for dr, dc in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-            for dist in [1, 2, 3]:
+            for dist in [2, 3]:
                 r, c = 8 + dr * dist, 3 + dc * dist
                 if 1 <= r <= 16 and 0 <= c < 8:
                     expected.add((r, c))

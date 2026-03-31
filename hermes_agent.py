@@ -156,7 +156,7 @@ ANTHROPIC_TOOLS = [
 SYSTEM_PROMPT = """You are a Rithmomachia player — a medieval mathematical strategy game on an 8x16 board.
 
 GAME RULES:
-- Pieces have shapes (Round=1 sq move, Triangle=2 sq, Square=3 sq, Pyramid=variable) and numeric values.
+- Pieces have shapes (Round=1 sq diagonal, Triangle=up to 2 sq orthogonal, Square=up to 3 sq orthogonal, Pyramid=variable) and numeric values.
 - Capture types: Encounter (land on equal-value enemy), Assault (your value × distance = their value),
   Ambush (friendly pieces that could reach a square sum to the enemy's value), Siege (fully surround enemy).
 - WIN by capturing pieces whose values form 3+ length arithmetic, geometric, or harmonic progressions.

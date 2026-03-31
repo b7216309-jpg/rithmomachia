@@ -156,16 +156,19 @@ def is_in_bounds(row: int, col: int) -> bool:
 
 def is_path_clear(state: GameState, from_row: int, from_col: int,
                   to_row: int, to_col: int) -> bool:
-    """Check that no pieces block the straight orthogonal path between two positions.
+    """Check that no pieces block the straight-line path between two positions.
 
+    Supports orthogonal and diagonal paths.
     Does NOT check the destination square (that's handled by move/capture logic).
     Only checks intermediate squares along the path.
     """
     dr = 0 if to_row == from_row else (1 if to_row > from_row else -1)
     dc = 0 if to_col == from_col else (1 if to_col > from_col else -1)
 
-    # Must be orthogonal (one of dr/dc must be 0)
-    if dr != 0 and dc != 0:
+    # Must be a straight line (orthogonal or diagonal)
+    row_diff = abs(to_row - from_row)
+    col_diff = abs(to_col - from_col)
+    if row_diff != 0 and col_diff != 0 and row_diff != col_diff:
         return False
 
     r, c = from_row + dr, from_col + dc
@@ -181,73 +184,89 @@ def is_path_clear(state: GameState, from_row: int, from_col: int,
 def legal_moves_for_piece(state: GameState, piece: Piece) -> list[Move]:
     """Generate all legal moves for a single piece.
 
-    A legal move is an orthogonal move of exactly 1..move_range squares
-    where the path is clear and the destination is either empty or
-    occupied by an enemy of equal value (encounter capture).
-
-    For pyramids: they can move using any component's range (1, 2, or 3).
-    Each move uses one range — e.g., a pyramid with round+triangle+square
-    can move 1, 2, or 3 squares.
+    Movement rules per shape:
+    - Round: 1 square diagonally
+    - Triangle: up to 2 squares orthogonally
+    - Square: up to 3 squares orthogonally
+    - Pyramid: combines its components' movement types
+      (round component → 1 diagonal, triangle → up to 2 ortho, square → up to 3 ortho)
     """
     if piece.captured:
         return []
 
     moves: list[Move] = []
-    max_range = max(piece.move_ranges)
 
-    # Four orthogonal directions: up, down, left, right
-    directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+    ORTHOGONAL = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+    DIAGONAL = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
 
-    # For pyramids, valid distances are exactly the component ranges.
-    # For normal pieces, valid distances are 1..move_range.
+    # Build list of (directions, max_range, valid_distances) groups
     if piece.shape == Shape.PYRAMID and piece.components:
-        valid_distances = set(piece.move_ranges)
+        # Components store shape as string name — convert to Shape enum
+        component_shapes = {Shape(s) for s, _v in piece.components}
+        move_groups = []
+        # Round components contribute diagonal movement at range 1
+        if Shape.ROUND in component_shapes:
+            move_groups.append((DIAGONAL, 1, {1}))
+        # Triangle/Square components contribute orthogonal movement
+        ortho_ranges = {s.move_range for s in component_shapes if s != Shape.ROUND}
+        if ortho_ranges:
+            max_ortho = max(ortho_ranges)
+            move_groups.append((ORTHOGONAL, max_ortho, ortho_ranges))
+    elif piece.shape == Shape.ROUND:
+        move_groups = [(DIAGONAL, 1, {1})]
     else:
-        valid_distances = set(range(1, max_range + 1))
+        max_range = piece.shape.move_range
+        move_groups = [(ORTHOGONAL, max_range, set(range(1, max_range + 1)))]
 
-    for dr, dc in directions:
-        for dist in range(1, max_range + 1):
-            to_row = piece.row + dr * dist
-            to_col = piece.col + dc * dist
+    seen = set()  # Avoid duplicate moves from overlapping pyramid components
 
-            if not is_in_bounds(to_row, to_col):
-                break  # Off the board — no further moves in this direction
+    for directions, max_range, valid_distances in move_groups:
+        for dr, dc in directions:
+            for dist in range(1, max_range + 1):
+                to_row = piece.row + dr * dist
+                to_col = piece.col + dc * dist
 
-            # Check path is clear up to (but not including) destination
-            if not is_path_clear(state, piece.row, piece.col, to_row, to_col):
-                break  # Blocked — no further moves in this direction
+                if not is_in_bounds(to_row, to_col):
+                    break  # Off the board — no further moves in this direction
 
-            # Only generate moves at valid distances
-            if dist not in valid_distances:
-                # For pyramids, skip this distance but keep checking further
+                # Check path is clear up to (but not including) destination
+                if not is_path_clear(state, piece.row, piece.col, to_row, to_col):
+                    break  # Blocked — no further moves in this direction
+
+                # Only generate moves at valid distances
+                if dist not in valid_distances:
+                    # For pyramids, skip this distance but keep checking further
+                    target = state.piece_at(to_row, to_col)
+                    if target is not None:
+                        break  # Can't go past any piece
+                    continue
+
                 target = state.piece_at(to_row, to_col)
-                if target is not None:
-                    break  # Can't go past any piece
-                continue
+                move_key = (to_row, to_col)
 
-            target = state.piece_at(to_row, to_col)
-
-            if target is None:
-                # Empty square — valid move
-                moves.append(Move(
-                    piece_id=piece.id,
-                    from_row=piece.row, from_col=piece.col,
-                    to_row=to_row, to_col=to_col,
-                ))
-            elif target.color == piece.color:
-                # Friendly piece — can't land here or go further
-                break
-            else:
-                # Enemy piece — can only land here via capture (encounter).
-                # For pyramids, use the total value for encounter.
-                if target.value == piece.value:
-                    moves.append(Move(
-                        piece_id=piece.id,
-                        from_row=piece.row, from_col=piece.col,
-                        to_row=to_row, to_col=to_col,
-                    ))
-                # Enemy piece blocks further movement regardless
-                break
+                if target is None:
+                    # Empty square — valid move
+                    if move_key not in seen:
+                        seen.add(move_key)
+                        moves.append(Move(
+                            piece_id=piece.id,
+                            from_row=piece.row, from_col=piece.col,
+                            to_row=to_row, to_col=to_col,
+                        ))
+                elif target.color == piece.color:
+                    # Friendly piece — can't land here or go further
+                    break
+                else:
+                    # Enemy piece — can only land here via capture (encounter).
+                    if target.value == piece.value and move_key not in seen:
+                        seen.add(move_key)
+                        moves.append(Move(
+                            piece_id=piece.id,
+                            from_row=piece.row, from_col=piece.col,
+                            to_row=to_row, to_col=to_col,
+                        ))
+                    # Enemy piece blocks further movement regardless
+                    break
 
     return moves
 

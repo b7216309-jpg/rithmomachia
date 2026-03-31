@@ -112,20 +112,26 @@ class TestPathClear:
         assert is_path_clear(state, 5, 3, 5, 4)
         assert is_path_clear(state, 5, 3, 6, 3)
 
-    def test_diagonal_not_orthogonal(self):
+    def test_diagonal_path_clear(self):
+        """Diagonal paths are valid (used by round pieces)."""
         state = GameState(pieces=[])
-        assert not is_path_clear(state, 1, 1, 3, 3)
+        assert is_path_clear(state, 1, 1, 3, 3)
+
+    def test_non_straight_line_blocked(self):
+        """Non-straight-line paths (e.g. knight-like) are invalid."""
+        state = GameState(pieces=[])
+        assert not is_path_clear(state, 1, 1, 3, 2)
 
 
 class TestMovement:
-    def test_round_moves_one_square(self):
-        """Round pieces move exactly 1 square orthogonally."""
+    def test_round_moves_one_square_diagonally(self):
+        """Round pieces move exactly 1 square diagonally."""
         piece = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
                       value=5, row=5, col=3)
         state = GameState(pieces=[piece])
         moves = legal_moves_for_piece(state, piece)
         destinations = {(m.to_row, m.to_col) for m in moves}
-        assert destinations == {(6, 3), (4, 3), (5, 4), (5, 2)}
+        assert destinations == {(6, 4), (6, 2), (4, 4), (4, 2)}
 
     def test_triangle_moves_up_to_two(self):
         """Triangle pieces move 1 or 2 squares orthogonally."""
@@ -188,12 +194,13 @@ class TestMovement:
         """Can move onto enemy with same value (encounter)."""
         piece = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
                       value=5, row=5, col=3)
+        # Place enemy diagonally (rounds move diagonally)
         enemy = Piece(id=2, color=Color.BLACK, shape=Shape.ROUND,
-                      value=5, row=6, col=3)
+                      value=5, row=6, col=4)
         state = GameState(pieces=[piece, enemy])
         moves = legal_moves_for_piece(state, piece)
         dests = {(m.to_row, m.to_col) for m in moves}
-        assert (6, 3) in dests
+        assert (6, 4) in dests
 
     def test_edge_of_board(self):
         """Pieces at the board edge have fewer moves."""
@@ -202,7 +209,8 @@ class TestMovement:
         state = GameState(pieces=[piece])
         moves = legal_moves_for_piece(state, piece)
         dests = {(m.to_row, m.to_col) for m in moves}
-        assert dests == {(2, 0), (1, 1)}
+        # Round at corner a1: only diagonal move is b2
+        assert dests == {(2, 1)}
 
     def test_initial_position_white_has_moves(self):
         """White should have legal moves from the starting position."""

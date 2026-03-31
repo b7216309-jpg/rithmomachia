@@ -10,7 +10,7 @@ from __future__ import annotations
 from itertools import combinations
 
 from engine.models import (
-    Color, Piece, Capture, CaptureType, GameState,
+    Color, Shape, Piece, Capture, CaptureType, GameState,
 )
 from engine.board import is_in_bounds, is_path_clear
 
@@ -139,17 +139,44 @@ def check_ambush(state: GameState, color: Color) -> list[Capture]:
 
 
 def _can_reach(state: GameState, piece: Piece, target_row: int, target_col: int) -> bool:
-    """Check if a piece could move to the target square (within range, clear path, orthogonal)."""
-    if piece.row != target_row and piece.col != target_col:
-        return False  # Not orthogonal
+    """Check if a piece could move to the target square (within range, clear path).
 
-    if piece.row == target_row:
-        distance = abs(piece.col - target_col)
-    else:
-        distance = abs(piece.row - target_row)
+    Respects shape-specific directions: rounds move diagonally,
+    triangles/squares move orthogonally, pyramids use component shapes.
+    """
+    row_diff = abs(piece.row - target_row)
+    col_diff = abs(piece.col - target_col)
 
-    if distance == 0 or distance > piece.shape.move_range:
+    if row_diff == 0 and col_diff == 0:
         return False
+
+    is_diagonal = (row_diff == col_diff and row_diff > 0)
+    is_orthogonal = (row_diff == 0) != (col_diff == 0)
+
+    if not is_diagonal and not is_orthogonal:
+        return False  # Not a straight line
+
+    distance = max(row_diff, col_diff)
+
+    if piece.shape == Shape.PYRAMID and piece.components:
+        component_shapes = {Shape(s) for s, _v in piece.components}
+        if is_diagonal:
+            if Shape.ROUND not in component_shapes or distance != 1:
+                return False
+        else:  # orthogonal
+            ortho_shapes = component_shapes - {Shape.ROUND}
+            if not ortho_shapes:
+                return False
+            if distance > max(s.move_range for s in ortho_shapes):
+                return False
+    elif piece.shape == Shape.ROUND:
+        if not is_diagonal or distance > 1:
+            return False
+    else:  # Triangle, Square
+        if not is_orthogonal:
+            return False
+        if distance > piece.shape.move_range:
+            return False
 
     return is_path_clear(state, piece.row, piece.col, target_row, target_col)
 

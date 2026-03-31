@@ -40,6 +40,12 @@ import httpx
 SYSTEM_PROMPT = """You are playing Rithmomachia, a medieval mathematical strategy game.
 You will receive a board state with all legal moves listed. Your job is to choose the best move.
 
+Movement rules:
+- Round (R): moves 1 square diagonally
+- Triangle (T): moves up to 2 squares orthogonally (straight line)
+- Square (S): moves up to 3 squares orthogonally (straight line)
+- Pyramid (P): moves like any of its component shapes
+
 Strategy tips:
 - Capture pieces whose values help you form arithmetic, geometric, or harmonic progressions
 - Protect your pieces from opponent captures

@@ -28,10 +28,8 @@ class TestStandardMove:
     def test_valid_move(self):
         """Move a white round piece one square forward."""
         game = Game.new()
-        # ○2(a1) can move to a2? No, a2 has ○3. Can move to b1? No, b1 has ○4.
-        # Let's find a piece that can actually move.
-        # ○1(a3) can move to a4 (empty).
-        result = game.submit_move("R1 a3→a4")
+        # ○1(a3) can move diagonally to b4 (empty).
+        result = game.submit_move("R1 a3→b4")
         assert result.success, result.error
         assert game.state.current_player == Color.BLACK
 
@@ -63,12 +61,13 @@ class TestStandardMove:
         game = Game.new()
         assert game.state.current_player == Color.WHITE
 
-        result = game.submit_move("R1 a3→a4")
+        # Round at a3 moves diagonally to b4
+        result = game.submit_move("R1 a3→b4")
         assert result.success
         assert game.state.current_player == Color.BLACK
 
-        # Black moves: ●2(a14) can move to a13
-        result = game.submit_move("R2 a14→a13")
+        # Black moves: ●2(a14) moves diagonally to b13
+        result = game.submit_move("R2 a14→b13")
         assert result.success
         assert game.state.current_player == Color.WHITE
 
@@ -78,16 +77,16 @@ class TestStandardMove:
         assert piece_before is not None
         assert piece_before.value == 1
 
-        game.submit_move("R1 a3→a4")
+        game.submit_move("R1 a3→b4")
 
         assert game.state.piece_at(3, 0) is None  # a3 now empty
-        piece_after = game.state.piece_at(4, 0)    # a4 has the piece
+        piece_after = game.state.piece_at(4, 1)    # b4 has the piece
         assert piece_after is not None
         assert piece_after.value == 1
 
     def test_move_history_recorded(self):
         game = Game.new()
-        game.submit_move("R1 a3→a4")
+        game.submit_move("R1 a3→b4")
         assert len(game.state.move_history) == 1
 
 
@@ -95,14 +94,15 @@ class TestEncounterCapture:
     def test_encounter_capture_in_game(self):
         """Set up a position where encounter capture is possible."""
         # Create a minimal board with a white and black piece of equal value
+        # Round moves diagonally, so place enemy on diagonal
         white = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
                       value=5, row=5, col=3)
         black = Piece(id=2, color=Color.BLACK, shape=Shape.ROUND,
-                      value=5, row=6, col=3)
+                      value=5, row=6, col=4)
         state = GameState(pieces=[white, black])
         game = Game(state)
 
-        result = game.submit_move("R5 d5→d6")
+        result = game.submit_move("R5 d5→e6")
         assert result.success
         assert len(result.captures) == 1
         assert result.captures[0].capture_type == CaptureType.ENCOUNTER
@@ -147,10 +147,10 @@ class TestAssaultCapture:
 
 class TestAmbushCapture:
     def test_ambush_in_game(self):
-        """Two white pieces sum to black's value: 3 + 5 = 8."""
-        f1 = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
+        """Two white triangles sum to black's value: 3 + 5 = 8."""
+        f1 = Piece(id=1, color=Color.WHITE, shape=Shape.TRIANGLE,
                    value=3, row=5, col=3)
-        f2 = Piece(id=2, color=Color.WHITE, shape=Shape.ROUND,
+        f2 = Piece(id=2, color=Color.WHITE, shape=Shape.TRIANGLE,
                    value=5, row=5, col=5)
         enemy = Piece(id=3, color=Color.BLACK, shape=Shape.ROUND,
                       value=8, row=5, col=4)
@@ -168,9 +168,9 @@ class TestAmbushCapture:
 
     def test_invalid_ambush(self):
         """Ambush where sum doesn't match."""
-        f1 = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
+        f1 = Piece(id=1, color=Color.WHITE, shape=Shape.TRIANGLE,
                    value=3, row=5, col=3)
-        f2 = Piece(id=2, color=Color.WHITE, shape=Shape.ROUND,
+        f2 = Piece(id=2, color=Color.WHITE, shape=Shape.TRIANGLE,
                    value=5, row=5, col=5)
         enemy = Piece(id=3, color=Color.BLACK, shape=Shape.ROUND,
                       value=10, row=5, col=4)
@@ -223,8 +223,8 @@ class TestVictory:
                     value=4, row=0, col=0, captured=True)
         b2 = Piece(id=11, color=Color.BLACK, shape=Shape.ROUND,
                     value=8, row=0, col=0, captured=True)
-        # White piece about to capture black piece with value 12
-        white = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
+        # White triangle about to capture black triangle with value 12
+        white = Piece(id=1, color=Color.WHITE, shape=Shape.TRIANGLE,
                       value=12, row=5, col=3)
         target = Piece(id=12, color=Color.BLACK, shape=Shape.TRIANGLE,
                        value=12, row=6, col=3)
@@ -232,7 +232,7 @@ class TestVictory:
         state = GameState(pieces=[white, target, b1, b2])
         game = Game(state)
 
-        result = game.submit_move("R12 d5→d6")
+        result = game.submit_move("T12 d5→d6")
         assert result.success
         assert result.victory is not None
         assert len(result.victory) > 0
@@ -242,7 +242,7 @@ class TestVictory:
 class TestDraw:
     def test_draw_after_50_turns_no_capture(self):
         """Draw counter increments and triggers at 50."""
-        white = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
+        white = Piece(id=1, color=Color.WHITE, shape=Shape.TRIANGLE,
                       value=1, row=5, col=3)
         black = Piece(id=2, color=Color.BLACK, shape=Shape.ROUND,
                       value=2, row=12, col=3)
@@ -250,7 +250,7 @@ class TestDraw:
         state.draw_counter = 49  # One more turn without capture = draw
         game = Game(state)
 
-        result = game.submit_move("R1 d5→d6")
+        result = game.submit_move("T1 d5→d6")
         assert result.success
         assert game.state.status == GameStatus.DRAW
 

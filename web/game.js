@@ -149,10 +149,10 @@ function menuRules() {
 
 <h4>Pieces & Movement</h4>
 <ul>
-    <li><strong>Round (Circle)</strong> — moves <strong>1 square</strong> diagonally. Lowest values.</li>
-    <li><strong>Triangle</strong> — moves <strong>2 squares</strong> in a straight line (orthogonal or diagonal).</li>
-    <li><strong>Square</strong> — moves <strong>3 squares</strong> in a straight line.</li>
-    <li><strong>Pyramid</strong> — a composite piece made of stacked shapes. Moves like any of its component shapes.</li>
+    <li><strong>Round (Circle)</strong> — moves <strong>1 square diagonally</strong>. Lowest values.</li>
+    <li><strong>Triangle</strong> — moves up to <strong>2 squares orthogonally</strong> (straight line, no jumping).</li>
+    <li><strong>Square</strong> — moves up to <strong>3 squares orthogonally</strong> (straight line, no jumping).</li>
+    <li><strong>Pyramid</strong> — a composite piece made of stacked shapes. Moves like any of its component shapes (diagonal for its round component, orthogonal for triangle/square).</li>
 </ul>
 <p>Pieces cannot jump over other pieces. Only one piece occupies a square at a time.</p>
 
@@ -337,8 +337,13 @@ function backToMenu() {
 async function startFight(mode) {
     try {
         let white, black;
+        let isPvpHost = false;
         if (mode === 'hotseat') {
             white = 'human'; black = 'human'; playerColor = 'both';
+        } else if (mode === 'pvp-white') {
+            white = 'human'; black = 'open'; playerColor = 'white'; isPvpHost = true;
+        } else if (mode === 'pvp-black') {
+            white = 'open'; black = 'human'; playerColor = 'black'; isPvpHost = true;
         } else if (mode === 'vs-ai-white') {
             white = 'human'; black = 'open'; playerColor = 'white';
         } else if (mode === 'vs-ai-black') {
@@ -364,7 +369,7 @@ async function startFight(mode) {
         showScreen('game');
         onResize();
 
-        // Show game ID so agents can connect
+        // Show game ID so opponent can connect
         showGameId(gameId);
 
         if (playerColor === 'spectator') {
@@ -375,6 +380,14 @@ async function startFight(mode) {
         await refreshState();
         await refreshLegal();
         render();
+
+        // PvP host: wait for opponent to join before allowing play
+        if (isPvpHost) {
+            showStatus(`Waiting for opponent... Share Game ID: ${gameId}`);
+            waitingForOpponent = true;
+            pollForOpponentJoin();
+            return;
+        }
 
         if (playerColor !== 'both' && playerColor !== 'spectator') {
             if (gameState && gameState.current_player !== playerColor) {
@@ -389,6 +402,32 @@ async function startFight(mode) {
     } catch (e) {
         console.error('Failed to start game:', e);
     }
+}
+
+async function pollForOpponentJoin() {
+    if (!gameId) return;
+    try {
+        const state = await Api.getState(gameId);
+        const opponentSeat = playerColor === 'white' ? 'black' : 'white';
+        if (state.players[opponentSeat].type !== 'open') {
+            // Opponent joined!
+            waitingForOpponent = false;
+            gameState = state;
+            showStatus(`${state.players[opponentSeat].name} joined! Game on.`);
+            updateUI();
+            await refreshLegal();
+            render();
+            // If it's not our turn, poll for their move
+            if (gameState.current_player !== playerColor) {
+                pollForOpponentMove();
+            }
+            return;
+        }
+    } catch (e) {
+        console.error('Poll join error:', e);
+    }
+    // Keep polling
+    setTimeout(pollForOpponentJoin, 2000);
 }
 
 async function doMenuJoin() {

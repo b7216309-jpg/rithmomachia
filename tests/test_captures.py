@@ -147,9 +147,10 @@ class TestAssault:
 class TestAmbush:
     def test_basic_ambush(self):
         """Two pieces sum to enemy value: 3 + 5 = 8."""
-        friend1 = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
+        # Use triangles (orthogonal movers) so they can reach the enemy
+        friend1 = Piece(id=1, color=Color.WHITE, shape=Shape.TRIANGLE,
                         value=3, row=5, col=3)
-        friend2 = Piece(id=2, color=Color.WHITE, shape=Shape.ROUND,
+        friend2 = Piece(id=2, color=Color.WHITE, shape=Shape.TRIANGLE,
                         value=5, row=5, col=5)
         enemy = Piece(id=3, color=Color.BLACK, shape=Shape.ROUND,
                       value=8, row=5, col=4)
@@ -181,11 +182,12 @@ class TestAmbush:
 
     def test_ambush_three_pieces(self):
         """Three pieces summing to enemy value."""
-        f1 = Piece(id=1, color=Color.WHITE, shape=Shape.ROUND,
+        # Use triangles for orthogonal reach to the target at (5,3)
+        f1 = Piece(id=1, color=Color.WHITE, shape=Shape.TRIANGLE,
                    value=2, row=4, col=3)
-        f2 = Piece(id=2, color=Color.WHITE, shape=Shape.ROUND,
+        f2 = Piece(id=2, color=Color.WHITE, shape=Shape.TRIANGLE,
                    value=3, row=5, col=4)
-        f3 = Piece(id=3, color=Color.WHITE, shape=Shape.ROUND,
+        f3 = Piece(id=3, color=Color.WHITE, shape=Shape.TRIANGLE,
                    value=4, row=6, col=3)
         enemy = Piece(id=4, color=Color.BLACK, shape=Shape.ROUND,
                       value=9, row=5, col=3)
