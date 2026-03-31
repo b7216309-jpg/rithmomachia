@@ -30,7 +30,7 @@ import time
 import httpx
 
 from llm_client import (
-    create_game, get_state, get_vision, submit_move, ask_llm,
+    create_game, join_game, get_state, get_vision, submit_move, ask_llm,
     extract_notation, SYSTEM_PROMPT, DEFAULT_SERVER, DEFAULT_LLM,
 )
 
@@ -58,11 +58,11 @@ def play_ai_vs_ai(server: str,
                   delay: float, max_turns: int):
     """Run an AI vs AI game."""
 
-    # Create game with both seats open
+    # Create game with both seats open, then join each
     resp = create_game(server, "open", "open")
     game_id = resp["id"]
-    white_token = resp["white_token"]
-    black_token = resp["black_token"]
+    white_token = join_game(server, game_id, "white", "AI-White")
+    black_token = join_game(server, game_id, "black", "AI-Black")
 
     print(f"\n{'='*55}")
     print(f"  Rithmomachia — AI vs AI")

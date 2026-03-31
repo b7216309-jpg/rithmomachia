@@ -523,8 +523,14 @@ def play_ai_vs_ai(server: str, api_url: str, model: str, api_key: str,
     print(f"  Spectate: open browser to {server}, click Spectate, enter {game_id}")
     print(f"{'='*55}\n")
 
-    white = GameInterface(server, game_id, data["white_token"], "white")
-    black = GameInterface(server, game_id, data["black_token"], "black")
+    # Join both seats to get real tokens
+    r_w = httpx.post(f"{server}/api/game/{game_id}/join", json={"color": "white", "name": "Hermes-W", "description": "Structured tool-use agent (white)"})
+    r_w.raise_for_status()
+    r_b = httpx.post(f"{server}/api/game/{game_id}/join", json={"color": "black", "name": "Hermes-B", "description": "Structured tool-use agent (black)"})
+    r_b.raise_for_status()
+
+    white = GameInterface(server, game_id, r_w.json()["token"], "white")
+    black = GameInterface(server, game_id, r_b.json()["token"], "black")
 
     if provider == "anthropic":
         run_white = lambda g: run_agent_turn_anthropic(api_key, model, temperature, g)
