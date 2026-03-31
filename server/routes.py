@@ -69,9 +69,9 @@ class GameSession:
     votes: dict[str, int] = field(default_factory=lambda: {"white": 0, "black": 0})
 
     def seat_for_token(self, token: str) -> Optional[Color]:
-        if token == self.white.token:
+        if token and self.white.token and token == self.white.token:
             return Color.WHITE
-        if token == self.black.token:
+        if token and self.black.token and token == self.black.token:
             return Color.BLACK
         return None
 
@@ -160,8 +160,9 @@ def _state_response(session: GameSession) -> GameStateResponse:
 @router.post("/new", response_model=NewGameResponse)
 def new_game(req: NewGameRequest):
     game_id = str(uuid.uuid4())[:8]
-    white_token = str(uuid.uuid4())[:12]
-    black_token = str(uuid.uuid4())[:12]
+    # Only generate tokens for non-open seats
+    white_token = str(uuid.uuid4())[:12] if req.white != "open" else ""
+    black_token = str(uuid.uuid4())[:12] if req.black != "open" else ""
 
     session = GameSession(
         id=game_id,
@@ -186,10 +187,13 @@ def join_game(game_id: str, req: JoinRequest):
     if seat.type != "open":
         raise HTTPException(400, f"{req.color} seat is not open")
 
+    # Generate token now that someone is actually joining
+    token = str(uuid.uuid4())[:12]
+    seat.token = token
     seat.name = req.name
-    seat.type = "agent"
+    seat.type = "human"
     seat.description = req.description
-    return JoinResponse(token=seat.token)
+    return JoinResponse(token=token)
 
 
 @router.get("/{game_id}/state", response_model=GameStateResponse)

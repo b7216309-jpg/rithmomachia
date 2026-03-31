@@ -357,8 +357,8 @@ async function startFight(mode) {
 
         const resp = await Api.newGame(white, black, wName, bName, wDesc, bDesc);
         gameId = resp.id;
-        whiteToken = resp.white_token;
-        blackToken = resp.black_token;
+        whiteToken = resp.white_token || null;
+        blackToken = resp.black_token || null;
         waitingForOpponent = false;
 
         showScreen('game');
