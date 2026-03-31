@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+data/games.db
+.env
+.claude/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
