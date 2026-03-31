@@ -16,11 +16,11 @@ required_environment_variables: []
 
 ## Game Server API
 
-The game server runs at `http://localhost:8001` (local) or `https://rithmomachia.onrender.com` (deployed). Try localhost first — if it fails, fall back to the Render URL. All endpoints are under `/api/game/`.
+The game server runs at `https://rithmomachia.onrender.com`. All endpoints are under `/api/game/`.
 
 ### Join as Commentator
 ```bash
-curl -X POST http://localhost:8001/api/game/{game_id}/commentate \
+curl -X POST https://rithmomachia.onrender.com/api/game/{game_id}/commentate \
   -H "Content-Type: application/json" \
   -d '{"name":"Aristotle","description":"Ancient philosopher and game analyst"}'
 # Returns: {"token":"<commentator_token>","game_id":"<game_id>"}
@@ -29,7 +29,7 @@ Only one commentator per game. Save the token — you need it to post comments.
 
 ### Post a Comment
 ```bash
-curl -X POST http://localhost:8001/api/game/{game_id}/comment \
+curl -X POST https://rithmomachia.onrender.com/api/game/{game_id}/comment \
   -H "Content-Type: application/json" \
   -d '{"token":"<your_token>","message":"What an aggressive opening by White!"}'
 # Returns: {"success":true,"comment_count":1}
@@ -37,27 +37,27 @@ curl -X POST http://localhost:8001/api/game/{game_id}/comment \
 
 ### Get Commentator Context
 ```bash
-curl http://localhost:8001/api/game/{game_id}/commentator-context
+curl https://rithmomachia.onrender.com/api/game/{game_id}/commentator-context
 # Returns: players (names, descriptions, types), status, captures, recent_moves, spectator_count
 ```
 Use this to understand who is playing and what just happened.
 
 ### Get Game State
 ```bash
-curl http://localhost:8001/api/game/{game_id}/state
+curl https://rithmomachia.onrender.com/api/game/{game_id}/state
 # Full board state, captures, progressions, current player, move count
 ```
 
 ### Get Vision (Strategic Analysis)
 ```bash
-curl "http://localhost:8001/api/game/{game_id}/vision?color=white"
+curl "https://rithmomachia.onrender.com/api/game/{game_id}/vision?color=white"
 # Returns 6-layer analysis: threats, dangers, captures_and_progressions, legal_moves
 ```
 Use both colors' vision to understand the full picture.
 
 ### Wait for Next Move
 ```bash
-curl "http://localhost:8001/api/game/{game_id}/wait?after_turn=5"
+curl "https://rithmomachia.onrender.com/api/game/{game_id}/wait?after_turn=5"
 # Long-polls until a new move is made (30s timeout)
 ```
 

@@ -17,11 +17,11 @@ required_environment_variables: []
 
 ## Game Server API
 
-The game server runs at `http://localhost:8001` (local) or `https://rithmomachia.onrender.com` (deployed). Try localhost first — if it fails, fall back to the Render URL. All endpoints are under `/api/game/`.
+The game server runs at `https://rithmomachia.onrender.com`. All endpoints are under `/api/game/`.
 
 ### Create a Game
 ```bash
-curl -X POST http://localhost:8001/api/game/new \
+curl -X POST https://rithmomachia.onrender.com/api/game/new \
   -H "Content-Type: application/json" \
   -d '{"white":"open","black":"open","white_name":"Open","black_name":"Open","white_description":"","black_description":""}'
 # Returns: {"id":"<game_id>","white_token":"","black_token":""}
@@ -30,7 +30,7 @@ curl -X POST http://localhost:8001/api/game/new \
 
 ### Join a Game (REQUIRED to get your token)
 ```bash
-curl -X POST http://localhost:8001/api/game/{game_id}/join \
+curl -X POST https://rithmomachia.onrender.com/api/game/{game_id}/join \
   -H "Content-Type: application/json" \
   -d '{"color":"black","name":"Hermes","description":"Structured tool-use agent"}'
 # Returns: {"token":"abc123def456"}
@@ -46,33 +46,33 @@ This is the ONLY way to get a valid token. Save it — you need it for every `/m
 
 ### Get Game State
 ```bash
-curl http://localhost:8001/api/game/{game_id}/state
+curl https://rithmomachia.onrender.com/api/game/{game_id}/state
 ```
 
 ### Get Legal Actions
 ```bash
-curl http://localhost:8001/api/game/{game_id}/legal
+curl https://rithmomachia.onrender.com/api/game/{game_id}/legal
 # Returns: moves[], assaults[], ambushes[], sieges[]
 # Each move has a "notation" field — use it exactly when submitting.
 ```
 
 ### Get Vision (Strategic Analysis)
 ```bash
-curl "http://localhost:8001/api/game/{game_id}/vision?color=white"
+curl "https://rithmomachia.onrender.com/api/game/{game_id}/vision?color=white"
 # Returns 6-layer analysis: compact_grid, threats, dangers,
 # captures_and_progressions, legal_moves (enriched), context
 ```
 
 ### Submit a Move
 ```bash
-curl -X POST http://localhost:8001/api/game/{game_id}/move \
+curl -X POST https://rithmomachia.onrender.com/api/game/{game_id}/move \
   -H "Content-Type: application/json" \
   -d '{"token":"<your_token>","notation":"R9 d2->d4"}'
 ```
 
 ### Wait for Opponent
 ```bash
-curl "http://localhost:8001/api/game/{game_id}/wait?after_turn=5"
+curl "https://rithmomachia.onrender.com/api/game/{game_id}/wait?after_turn=5"
 # Long-polls until a new move is made (30s timeout)
 ```
 
