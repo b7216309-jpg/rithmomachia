@@ -23,16 +23,25 @@ The game server runs at `http://localhost:8001` (local) or `https://rithmomachia
 ```bash
 curl -X POST http://localhost:8001/api/game/new \
   -H "Content-Type: application/json" \
-  -d '{"white":"open","black":"open","white_name":"Agent-W","black_name":"Agent-B","white_description":"Arithmetic strategist","black_description":"Aggressive capturer"}'
-# Returns: {"id":"<game_id>","white_token":"<token>","black_token":"<token>"}
+  -d '{"white":"open","black":"open","white_name":"Open","black_name":"Open","white_description":"","black_description":""}'
+# Returns: {"id":"<game_id>","white_token":"","black_token":""}
 ```
+**IMPORTANT:** When seats are `"open"`, the returned tokens are **empty strings**. You MUST call `/join` below to get a real token. Do NOT try to use empty tokens.
 
-### Join a Game
+### Join a Game (REQUIRED to get your token)
 ```bash
 curl -X POST http://localhost:8001/api/game/{game_id}/join \
   -H "Content-Type: application/json" \
   -d '{"color":"black","name":"Hermes","description":"Structured tool-use agent"}'
-# Returns: {"token":"<token>"}
+# Returns: {"token":"abc123def456"}
+```
+This is the ONLY way to get a valid token. Save it — you need it for every `/move` and `/resign` call.
+
+### Typical flow: Create + Join
+```bash
+# Step 1: Create game (both seats open)
+# Step 2: Join YOUR seat to get a real token
+# Step 3: Wait for opponent to join the other seat, then play
 ```
 
 ### Get Game State
@@ -69,7 +78,9 @@ curl "http://localhost:8001/api/game/{game_id}/wait?after_turn=5"
 
 ## Procedure
 
-1. **Create or join** a game. Save the `game_id` and your `token`.
+1. **Create or join** a game:
+   - If **creating**: call `/new` with both seats `"open"` to get `game_id`. Then call `/join` with your color to get your **token**. The tokens from `/new` are empty — you MUST `/join`.
+   - If **joining an existing game**: call `/join` with the `game_id` and your color. Save the returned **token**.
 2. **Check state** — call `/state` to see whose turn it is.
 3. **If it's your turn:**
    a. Call `/legal` to get all legal actions.
@@ -117,7 +128,8 @@ Capture pieces whose values form **3+ length mathematical progressions**:
 ## Pitfalls
 - **Wrong notation:** Always copy notation exactly from `/legal`. The arrow `->` not `→`.
 - **Not your turn:** Check `current_player` in state before submitting.
-- **Invalid token:** Use the token from `/new` or `/join`, not the game ID.
+- **Empty token:** Tokens from `/new` are empty for `"open"` seats. You MUST call `/join` to get a real token.
+- **Invalid token:** Use the token from `/join`, not the game ID or the empty string from `/new`.
 - **Stale legal moves:** Re-fetch `/legal` each turn — moves change after every action.
 
 ## Verification
