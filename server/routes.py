@@ -13,7 +13,7 @@ from engine.models import Color, GameStatus, Capture, Move
 from engine.game import Game
 from engine.board import all_legal_moves
 from engine.captures import check_ambush, find_assault_targets, check_siege
-from engine.vision import build_vision
+from engine.vision import build_vision, build_turn_summary
 from engine.victory import find_progressions
 from engine.notation import format_move
 from server.schemas import (
@@ -196,20 +196,65 @@ def join_game(game_id: str, req: JoinRequest):
     return JoinResponse(aiid=aiid)
 
 
-@router.get("/{game_id}/state", response_model=GameStateResponse)
-def get_state(game_id: str):
+@router.get("/{game_id}/state")
+def get_state(game_id: str, compact: bool = False):
     session = _get_session(game_id)
+    if compact:
+        state = session.game.state
+        summary = build_turn_summary(state, state.current_player)
+        last_move = state.move_history[-1].notation if state.move_history else None
+        return {
+            "turn": state.turn,
+            "current_player": state.current_player.value,
+            "status": state.status.value,
+            "board": summary["board"],
+            "white_captures": state.captured_values(Color.WHITE),
+            "black_captures": state.captured_values(Color.BLACK),
+            "move_count": len(state.move_history),
+            "last_move": last_move,
+        }
     return _state_response(session)
 
 
-@router.get("/{game_id}/legal", response_model=LegalActionsResponse)
-def get_legal(game_id: str):
+@router.get("/{game_id}/legal")
+def get_legal(game_id: str, compact: bool = False):
     session = _get_session(game_id)
     state = session.game.state
     color = state.current_player
 
     # Standard moves
     moves = all_legal_moves(state, color)
+
+    if compact:
+        # Compact: just notation strings and description strings
+        move_notations = [format_move(state.piece_by_id(m.piece_id), m.to_row, m.to_col) for m in moves]
+
+        assault_descs = []
+        for piece in state.pieces_by_color(color):
+            for cap in find_assault_targets(state, piece):
+                target = state.piece_by_id(cap.captured_piece_id)
+                assault_descs.append(
+                    f"assault {piece.notation_prefix}{piece.value} {piece.position_str}->{target.position_str}"
+                )
+
+        ambush_descs = [
+            f"ambush {state.piece_by_id(cap.captured_piece_id).position_str}"
+            for cap in check_ambush(state, color)
+        ]
+
+        siege_descs = [
+            f"siege {state.piece_by_id(cap.captured_piece_id).position_str}"
+            for cap in check_siege(state, color)
+        ]
+
+        return {
+            "moves": move_notations,
+            "assaults": assault_descs,
+            "ambushes": ambush_descs,
+            "sieges": siege_descs,
+        }
+
+    # Full response (backward compatible)
     move_responses = []
     for m in moves:
         piece = state.piece_by_id(m.piece_id)
@@ -261,6 +306,70 @@ def get_vision(game_id: str, color: str = "white"):
     return build_vision(session.game.state, c)
 
 
+@router.get("/{game_id}/turn")
+def get_turn(game_id: str, color: str = "white"):
+    """Token-efficient turn summary for AI agents.
+
+    Returns a single compact dict with board state, legal moves (notation only),
+    threats, dangers, and progression hints -- everything an agent needs in one call.
+    """
+    session = _get_session(game_id)
+    try:
+        c = Color(color)
+    except ValueError:
+        raise HTTPException(400, f"Invalid color: {color}")
+
+    state = session.game.state
+    summary = build_turn_summary(state, c)
+
+    # Legal moves as notation strings only
+    moves = all_legal_moves(state, c)
+    move_notations = [format_move(state.piece_by_id(m.piece_id), m.to_row, m.to_col) for m in moves]
+
+    # Assaults
+    assault_descs = []
+    for piece in state.pieces_by_color(c):
+        for cap in find_assault_targets(state, piece):
+            target = state.piece_by_id(cap.captured_piece_id)
+            assault_descs.append(
+                f"assault {piece.notation_prefix}{piece.value} {piece.position_str}->{target.position_str}"
+            )
+
+    # Ambushes
+    ambush_descs = [
+        f"ambush {state.piece_by_id(cap.captured_piece_id).position_str}"
+        for cap in check_ambush(state, c)
+    ]
+
+    # Sieges
+    siege_descs = [
+        f"siege {state.piece_by_id(cap.captured_piece_id).position_str}"
+        for cap in check_siege(state, c)
+    ]
+
+    # Last move notation
+    last_move = None
+    if state.move_history:
+        last_move = state.move_history[-1].notation
+
+    return {
+        "turn": state.turn,
+        "current_player": state.current_player.value,
+        "status": state.status.value,
+        "board": summary["board"],
+        "my_captures": state.captured_values(c),
+        "opp_captures": state.captured_values(c.opposite),
+        "moves": move_notations,
+        "assaults": assault_descs,
+        "ambushes": ambush_descs,
+        "sieges": siege_descs,
+        "threats": summary["threats"],
+        "dangers": summary["dangers"],
+        "progression_hint": summary["progression_hint"],
+        "last_move": last_move,
+    }
+
+
 @router.post("/{game_id}/move", response_model=MoveResultResponse)
 def submit_move(game_id: str, req: MoveRequest):
     session = _get_session(game_id)
@@ -292,7 +401,7 @@ def submit_move(game_id: str, req: MoveRequest):
         victory=[ProgressionResponse(type=p.progression_type.value, values=list(p.values))
                  for p in result.victory] if result.victory else None,
         victory_type=result.victory_type,
-        state=_state_response(session),
+        state=None if req.compact else _state_response(session),
     )
     return resp
 

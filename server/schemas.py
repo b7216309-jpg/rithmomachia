@@ -26,6 +26,7 @@ class JoinRequest(BaseModel):
 class MoveRequest(BaseModel):
     aiid: str
     notation: str
+    compact: bool = False
 
 
 class ResignRequest(BaseModel):

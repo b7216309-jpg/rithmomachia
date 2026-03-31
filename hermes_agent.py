@@ -47,33 +47,10 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_board_state",
+            "name": "get_turn_summary",
             "description": (
-                "Get the current game state: board positions, whose turn it is, "
-                "captures so far, and progression status. Call this first to orient yourself."
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_legal_actions",
-            "description": (
-                "Get all legal actions: standard moves, assault captures, ambush captures, "
-                "and siege declarations. Each action includes its notation string."
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "analyze_position",
-            "description": (
-                "Get a detailed strategic analysis of the current position: "
-                "threats you can make, dangers from the opponent, capture opportunities, "
-                "and which captures would advance your progression toward victory."
+                "Get everything for this turn in one call: board layout, legal moves, "
+                "captures, threats, dangers, and progression hints. Call this first."
             ),
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
@@ -83,7 +60,7 @@ TOOLS = [
         "function": {
             "name": "submit_move",
             "description": (
-                "Submit your chosen move. Use the EXACT notation from get_legal_actions. "
+                "Submit your chosen move. Use EXACT notation from get_turn_summary moves list. "
                 "Examples: 'R9 d2->d4', 'assault T36 d3->d5', 'ambush e5', 'siege d8'."
             ),
             "parameters": {
@@ -91,7 +68,7 @@ TOOLS = [
                 "properties": {
                     "notation": {
                         "type": "string",
-                        "description": "The move notation, exactly as shown in legal actions.",
+                        "description": "The move notation, exactly as shown in the moves list.",
                     },
                     "reasoning": {
                         "type": "string",
@@ -107,33 +84,17 @@ TOOLS = [
 # Anthropic tool format
 ANTHROPIC_TOOLS = [
     {
-        "name": "get_board_state",
+        "name": "get_turn_summary",
         "description": (
-            "Get the current game state: board positions, whose turn it is, "
-            "captures so far, and progression status."
-        ),
-        "input_schema": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "get_legal_actions",
-        "description": (
-            "Get all legal actions: standard moves, assault captures, ambush captures, "
-            "and siege declarations. Each action includes its notation string."
-        ),
-        "input_schema": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "analyze_position",
-        "description": (
-            "Get detailed strategic analysis: threats, dangers, capture opportunities, "
-            "and which captures advance your victory progression."
+            "Get everything for this turn: board, legal moves, captures, "
+            "threats, dangers, progression hints. Call first."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "submit_move",
         "description": (
-            "Submit your chosen move using EXACT notation from get_legal_actions."
+            "Submit your chosen move using EXACT notation from get_turn_summary."
         ),
         "input_schema": {
             "type": "object",
@@ -153,28 +114,10 @@ ANTHROPIC_TOOLS = [
 ]
 
 
-SYSTEM_PROMPT = """You are a Rithmomachia player — a medieval mathematical strategy game on an 8x16 board.
-
-GAME RULES:
-- Pieces have shapes (Round=1 sq diagonal, Triangle=up to 2 sq orthogonal, Square=up to 3 sq orthogonal, Pyramid=variable) and numeric values.
-- Capture types: Encounter (land on equal-value enemy), Assault (your value × distance = their value),
-  Ambush (friendly pieces that could reach a square sum to the enemy's value), Siege (fully surround enemy).
-- WIN by capturing pieces whose values form 3+ length arithmetic, geometric, or harmonic progressions.
-
-YOUR APPROACH:
-1. First call get_board_state to see the current position.
-2. Then call get_legal_actions to see your options.
-3. Optionally call analyze_position for deeper strategic insight.
-4. Finally call submit_move with your chosen notation.
-
-STRATEGY TIPS:
-- Prioritize captures that give you values useful for progressions.
-- Arithmetic progressions: equal differences (e.g., 2,4,6 or 3,6,9).
-- Geometric progressions: equal ratios (e.g., 2,4,8 or 3,9,27).
-- Harmonic progressions: reciprocals form arithmetic seq (e.g., 2,3,6).
-- Protect your pieces from opponent captures.
-- Control the center of the board.
-"""
+SYSTEM_PROMPT = """You are a Rithmomachia player. 8x16 board, pieces have numeric values.
+Capture by: encounter (equal value), assault (value*distance=target), ambush (sum of friendlies=target), siege (surround).
+Win by capturing values forming arithmetic/geometric/harmonic progressions (3+ values).
+Call get_turn_summary first, then submit_move with exact notation from the legal moves list."""
 
 
 # ═══════════════════════════════════════
@@ -196,6 +139,10 @@ class GameInterface:
         r = self.client.request(method, url, **kwargs)
         r.raise_for_status()
         return r.json()
+
+    def get_turn_summary(self) -> dict:
+        """Single compact call that returns everything the agent needs for one turn."""
+        return self._api("GET", "/turn", params={"color": self.color})
 
     def get_board_state(self) -> dict:
         state = self._api("GET", "/state")
@@ -257,6 +204,7 @@ class GameInterface:
         result = self._api("POST", "/move", json={
             "aiid": self.aiid,
             "notation": notation,
+            "compact": True,
         })
         return {
             "success": result["success"],
@@ -272,7 +220,9 @@ class GameInterface:
 
     def execute_tool(self, name: str, args: dict) -> str:
         """Execute a tool call and return JSON result."""
-        if name == "get_board_state":
+        if name == "get_turn_summary":
+            return json.dumps(self.get_turn_summary(), indent=2)
+        elif name == "get_board_state":
             return json.dumps(self.get_board_state(), indent=2)
         elif name == "get_legal_actions":
             return json.dumps(self.get_legal_actions(), indent=2)
@@ -487,9 +437,9 @@ def play_loop(game: GameInterface, run_turn_fn, max_turns: int = 200, delay: flo
 
         if not success:
             # Fallback: pick first legal move
-            legal = game.get_legal_actions()
-            if legal["moves"]:
-                notation = legal["moves"][0]["notation"]
+            summary = game.get_turn_summary()
+            if summary["moves"]:
+                notation = summary["moves"][0]
                 print(f"    Fallback: {notation}")
                 game.submit_move(notation)
 
@@ -553,9 +503,9 @@ def play_ai_vs_ai(server: str, api_url: str, model: str, api_key: str,
         success = run_fn(agent)
 
         if not success:
-            legal = agent.get_legal_actions()
-            if legal["moves"]:
-                notation = legal["moves"][0]["notation"]
+            summary = agent.get_turn_summary()
+            if summary["moves"]:
+                notation = summary["moves"][0]
                 print(f"    Fallback: {notation}")
                 agent.submit_move(notation)
 

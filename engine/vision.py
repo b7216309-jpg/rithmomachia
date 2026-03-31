@@ -475,5 +475,61 @@ def _format_raw_text(state, color, grid, threats, dangers,
     return "\n".join(lines)
 
 
+def build_turn_summary(state: GameState, color: Color) -> dict:
+    """Build a compact turn summary for token-efficient agent consumption.
+
+    Returns a dict with:
+      - board: compact piece-list string like "W: R2-a1 R4-b1 | B: R3-a16 R5-b16"
+      - threats: list of one-line strings
+      - dangers: list of one-line strings
+      - progression_hint: list of strings from values_needed_for_progression
+    """
+    # Compact board: group active pieces by color
+    white_pieces = sorted(
+        state.pieces_by_color(Color.WHITE), key=lambda p: (p.row, p.col)
+    )
+    black_pieces = sorted(
+        state.pieces_by_color(Color.BLACK), key=lambda p: (p.row, p.col)
+    )
+
+    def _piece_tag(p: Piece) -> str:
+        return f"{p.notation_prefix}{p.value}-{p.position_str}"
+
+    board_str = (
+        "W: " + " ".join(_piece_tag(p) for p in white_pieces)
+        + " | B: " + " ".join(_piece_tag(p) for p in black_pieces)
+    )
+
+    # Threats as one-line strings
+    raw_threats = _build_threats(state, color)
+    threat_lines = [
+        f"{t['capture'].upper()}: {t['piece']} -> {t['target']} [{t['math']}]"
+        for t in raw_threats
+    ]
+
+    # Dangers as one-line strings
+    raw_dangers = _build_dangers(state, color)
+    danger_lines = [
+        f"{d['capture_type'].upper()}: {d['piece']} threatened by {d['threat_from']} [{d['math']}]"
+        for d in raw_dangers
+    ]
+
+    # Progression hints
+    my_captures = state.captured_values(color)
+    enemy_alive = [p.value for p in state.pieces_by_color(color.opposite)]
+    needed = values_needed_for_progression(my_captures, enemy_alive)
+    progression_hint = [
+        f"capture {val} -> {', '.join(descs)}"
+        for val, descs in needed.items()
+    ]
+
+    return {
+        "board": board_str,
+        "threats": threat_lines,
+        "dangers": danger_lines,
+        "progression_hint": progression_hint,
+    }
+
+
 def _pos(row: int, col: int) -> str:
     return f"{chr(ord('a') + col)}{row}"
