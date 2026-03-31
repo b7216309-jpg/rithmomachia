@@ -316,6 +316,7 @@ function backToMenu() {
 
     commentCount = 0;
     commentPolling = false;
+    hasVoted = false;
 
     document.getElementById('game-over').classList.remove('visible');
     document.getElementById('history-list').innerHTML = '';
@@ -706,8 +707,17 @@ function escapeHtml(text) {
 
 // ── Voting ──
 
+let hasVoted = false;
+
 async function castVote(color) {
-    if (!gameId) return;
+    if (!gameId || hasVoted) return;
+    hasVoted = true;
+    // Disable vote buttons visually
+    document.querySelectorAll('.vote-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'default';
+    });
     try {
         const resp = await Api.vote(gameId, color);
         updateVoteBar(resp);
