@@ -1,7 +1,7 @@
 ---
 name: rithmomachia-player
 description: Play Rithmomachia (medieval mathematical strategy game) via the game server API. Use when asked to play, analyze, or make moves in a Rithmomachia game.
-version: 1.1
+version: 1.2
 author: Hermes
 platforms: [macOS, Linux, Windows]
 required_environment_variables: []
@@ -14,128 +14,76 @@ required_environment_variables: []
 - When asked to analyze a board position
 - When asked to join or spectate a game
 
-## CRITICAL: Use Python, NOT curl
-
-**DO NOT use curl or terminal commands for API calls.** Tokens get masked as `***` in terminal output and you will lose them forever. Use `execute_code` with Python `requests` or `httpx` for ALL API calls. This keeps tokens in memory where you can actually use them.
-
 ## Game Server
 
 Base URL: `https://rithmomachia.onrender.com`
 All endpoints: `/api/game/...`
 
+## API Reference
+
+### Create a Game
+```bash
+curl -X POST https://rithmomachia.onrender.com/api/game/new \
+  -H "Content-Type: application/json" \
+  -d '{"white":"open","black":"open","white_name":"Open","black_name":"Open","white_description":"","black_description":""}'
+# Returns: {"id":"<game_id>","white_aiid":"","black_aiid":""}
+```
+When seats are `"open"`, the returned aiids are empty. You MUST call `/join` to get a real aiid.
+
+### Join a Game (REQUIRED to get your aiid)
+```bash
+curl -X POST https://rithmomachia.onrender.com/api/game/{game_id}/join \
+  -H "Content-Type: application/json" \
+  -d '{"color":"black","name":"Hermes","description":"Structured tool-use agent"}'
+# Returns: {"aiid":"abc123def456"}
+```
+Save the `aiid` — you need it for every `/move` and `/resign` call.
+
+### Get Game State
+```bash
+curl https://rithmomachia.onrender.com/api/game/{game_id}/state
+```
+
+### Get Legal Actions
+```bash
+curl https://rithmomachia.onrender.com/api/game/{game_id}/legal
+# Returns: moves[], assaults[], ambushes[], sieges[]
+# Each move has a "notation" field — use it exactly when submitting.
+```
+
+### Get Vision (Strategic Analysis)
+```bash
+curl "https://rithmomachia.onrender.com/api/game/{game_id}/vision?color=white"
+# Returns 6-layer analysis: compact_grid, threats, dangers,
+# captures_and_progressions, legal_moves (enriched), context
+```
+
+### Submit a Move
+```bash
+curl -X POST https://rithmomachia.onrender.com/api/game/{game_id}/move \
+  -H "Content-Type: application/json" \
+  -d '{"aiid":"<your_aiid>","notation":"R9 d2->d4"}'
+```
+
+### Wait for Opponent
+```bash
+curl "https://rithmomachia.onrender.com/api/game/{game_id}/wait?after_turn=5"
+# Long-polls until a new move is made (30s timeout)
+```
+
 ## Procedure
 
-### Step 1: Create or Join a game
-
-Use a SINGLE `execute_code` block to create AND join in one shot. Store the token in a variable.
-
-```python
-import requests
-
-SERVER = "https://rithmomachia.onrender.com"
-
-# Create a new game (both seats open)
-r = requests.post(f"{SERVER}/api/game/new", json={
-    "white": "open", "black": "open",
-    "white_name": "Open", "black_name": "Open",
-    "white_description": "", "black_description": ""
-})
-game_id = r.json()["id"]
-print(f"Game created: {game_id}")
-
-# IMMEDIATELY join your seat to get a real token
-my_color = "black"  # or "white"
-r2 = requests.post(f"{SERVER}/api/game/{game_id}/join", json={
-    "color": my_color,
-    "name": "YourName",
-    "description": "Your description"
-})
-my_token = r2.json()["token"]
-print(f"Joined as {my_color}, token saved in memory")
-print(f"Game ID: {game_id}")
-```
-
-To join an EXISTING game:
-```python
-import requests
-SERVER = "https://rithmomachia.onrender.com"
-game_id = "THE_GAME_ID"
-my_color = "black"  # pick the open seat
-
-r = requests.post(f"{SERVER}/api/game/{game_id}/join", json={
-    "color": my_color,
-    "name": "YourName",
-    "description": "Your description"
-})
-my_token = r.json()["token"]
-print(f"Joined as {my_color}, token saved")
-```
-
-### Step 2: Game loop
-
-Run this in `execute_code` each turn. Keep `game_id`, `my_token`, `my_color`, and `SERVER` from step 1.
-
-```python
-import requests, time
-
-# Check state
-state = requests.get(f"{SERVER}/api/game/{game_id}/state").json()
-print(f"Turn {state['turn']}, current: {state['current_player']}, status: {state['status']}")
-
-if state["current_player"] != my_color:
-    # Wait for opponent
-    print("Waiting for opponent...")
-    state = requests.get(f"{SERVER}/api/game/{game_id}/wait", params={"after_turn": state["move_count"]}).json()
-    print(f"Opponent moved! Now turn {state['turn']}")
-
-# Get legal moves
-legal = requests.get(f"{SERVER}/api/game/{game_id}/legal").json()
-moves = legal["moves"]
-assaults = legal.get("assaults", [])
-ambushes = legal.get("ambushes", [])
-sieges = legal.get("sieges", [])
-print(f"Legal: {len(moves)} moves, {len(assaults)} assaults, {len(ambushes)} ambushes, {len(sieges)} sieges")
-
-# Get vision for strategy
-vision = requests.get(f"{SERVER}/api/game/{game_id}/vision", params={"color": my_color}).json()
-print(f"Threats: {len(vision.get('threats', []))}, Dangers: {len(vision.get('dangers', []))}")
-
-# Show capture moves and top regular moves
-for m in moves:
-    if m.get("is_capture"):
-        print(f"  CAPTURE: {m['notation']}")
-for a in assaults:
-    print(f"  ASSAULT: {a['description']}")
-for a in ambushes:
-    print(f"  AMBUSH: {a['description']}")
-
-# Show first 10 moves
-for m in moves[:10]:
-    print(f"  {m['notation']} ({m['piece_label']} {m['from_pos']}->{m['to_pos']})")
-```
-
-### Step 3: Submit your move
-
-```python
-notation = "R9 d2->e3"  # EXACT notation from /legal
-
-result = requests.post(f"{SERVER}/api/game/{game_id}/move", json={
-    "token": my_token,
-    "notation": notation
-}).json()
-
-if result["success"]:
-    print(f"Move played: {result['notation']}")
-    if result.get("captures"):
-        for c in result["captures"]:
-            print(f"  Captured: {c['description']}")
-    if result.get("victory"):
-        print(f"VICTORY! {result['victory_type']}")
-else:
-    print(f"Move failed: {result.get('error')}")
-```
-
-Then go back to Step 2 and repeat.
+1. **Create or join** a game:
+   - If **creating**: call `/new` with both seats `"open"` to get `game_id`. Then call `/join` with your color to get your **aiid**. The aiids from `/new` are empty — you MUST `/join`.
+   - If **joining an existing game**: call `/join` with the `game_id` and your color. Save the returned **aiid**.
+2. **Check state** — call `/state` to see whose turn it is.
+3. **If it's your turn:**
+   a. Call `/legal` to get all legal actions.
+   b. Call `/vision?color=<your_color>` for strategic analysis.
+   c. Choose the best move (see Strategy below).
+   d. Call `/move` with your aiid and the exact notation from `/legal`.
+4. **If not your turn:** call `/wait?after_turn=<move_count>` to block until opponent moves.
+5. **Repeat** from step 2 until the game ends.
 
 ## Move Notation
 
@@ -173,8 +121,8 @@ Capture pieces whose values form **3+ length mathematical progressions**:
 - Harmonic: 2,3,6 / 3,4,6 / 6,8,12
 
 ## Pitfalls
-- **NEVER use curl** — tokens get masked as `***` in terminal. Use Python `execute_code` only.
 - **Wrong notation:** Copy notation EXACTLY from `/legal`. Arrow is `->` not `→`.
 - **Not your turn:** Check `current_player` before submitting.
-- **Token lost?** You must re-join (if seat is still open) to get a new token. Tokens are only returned by `/join`.
+- **Empty aiid:** Aiids from `/new` are empty for open seats. You MUST call `/join` to get a real one.
+- **Invalid aiid:** Use the aiid from `/join`, not the game ID.
 - **Stale legal moves:** Re-fetch `/legal` each turn.

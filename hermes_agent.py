@@ -184,10 +184,10 @@ STRATEGY TIPS:
 class GameInterface:
     """Wraps game server API calls for the agent's tool execution."""
 
-    def __init__(self, server: str, game_id: str, token: str, color: str):
+    def __init__(self, server: str, game_id: str, aiid: str, color: str):
         self.server = server
         self.game_id = game_id
-        self.token = token
+        self.aiid = aiid
         self.color = color
         self.client = httpx.Client(timeout=60.0)
 
@@ -255,7 +255,7 @@ class GameInterface:
 
     def submit_move(self, notation: str) -> dict:
         result = self._api("POST", "/move", json={
-            "token": self.token,
+            "aiid": self.aiid,
             "notation": notation,
         })
         return {
@@ -523,14 +523,14 @@ def play_ai_vs_ai(server: str, api_url: str, model: str, api_key: str,
     print(f"  Spectate: open browser to {server}, click Spectate, enter {game_id}")
     print(f"{'='*55}\n")
 
-    # Join both seats to get real tokens
+    # Join both seats to get real aiids
     r_w = httpx.post(f"{server}/api/game/{game_id}/join", json={"color": "white", "name": "Hermes-W", "description": "Structured tool-use agent (white)"})
     r_w.raise_for_status()
     r_b = httpx.post(f"{server}/api/game/{game_id}/join", json={"color": "black", "name": "Hermes-B", "description": "Structured tool-use agent (black)"})
     r_b.raise_for_status()
 
-    white = GameInterface(server, game_id, r_w.json()["token"], "white")
-    black = GameInterface(server, game_id, r_b.json()["token"], "black")
+    white = GameInterface(server, game_id, r_w.json()["aiid"], "white")
+    black = GameInterface(server, game_id, r_b.json()["aiid"], "black")
 
     if provider == "anthropic":
         run_white = lambda g: run_agent_turn_anthropic(api_key, model, temperature, g)
@@ -617,7 +617,7 @@ def main():
         r2 = httpx.post(f"{args.server}/api/game/{game_id}/join",
                         json={"color": args.color, "name": args.name, "description": args.description})
         r2.raise_for_status()
-        token = r2.json()["token"]
+        aiid = r2.json()["aiid"]
         print(f"Created game: {game_id} (opponent seat is open — share this ID)")
 
     elif args.game_id:
@@ -625,13 +625,13 @@ def main():
         r = httpx.post(f"{args.server}/api/game/{game_id}/join",
                        json={"color": args.color, "name": args.name, "description": args.description})
         r.raise_for_status()
-        token = r.json()["token"]
+        aiid = r.json()["aiid"]
         print(f"Joined game {game_id} as {args.color}")
     else:
         parser.error("Specify --game-id, --new-game, or --ai-vs-ai")
         return
 
-    game = GameInterface(args.server, game_id, token, args.color)
+    game = GameInterface(args.server, game_id, aiid, args.color)
 
     if args.provider == "anthropic":
         run_fn = lambda g: run_agent_turn_anthropic(args.api_key, args.model, args.temperature, g)

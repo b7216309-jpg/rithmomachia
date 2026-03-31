@@ -39,8 +39,8 @@ let cellSize = 0;
 let boardOriginX = 0, boardOriginY = 0;
 
 let gameId = null;
-let whiteToken = null;
-let blackToken = null;
+let whiteAiid = null;
+let blackAiid = null;
 let gameState = null;
 let legalActions = null;
 let playerColor = 'both'; // 'white', 'black', 'both' (hotseat), 'spectator'
@@ -304,8 +304,8 @@ function showScreen(screen) {
 function backToMenu() {
     // Reset game state
     gameId = null;
-    whiteToken = null;
-    blackToken = null;
+    whiteAiid = null;
+    blackAiid = null;
     gameState = null;
     legalActions = null;
     waitingForOpponent = false;
@@ -363,8 +363,8 @@ async function startFight(mode) {
 
         const resp = await Api.newGame(white, black, wName, bName, wDesc, bDesc);
         gameId = resp.id;
-        whiteToken = resp.white_token || null;
-        blackToken = resp.black_token || null;
+        whiteAiid = resp.white_aiid || null;
+        blackAiid = resp.black_aiid || null;
         waitingForOpponent = false;
 
         showScreen('game');
@@ -442,11 +442,11 @@ async function doMenuJoin() {
         gameId = id;
         playerColor = color;
         if (color === 'white') {
-            whiteToken = resp.token;
-            blackToken = null;
+            whiteAiid = resp.aiid;
+            blackAiid = null;
         } else {
-            blackToken = resp.token;
-            whiteToken = null;
+            blackAiid = resp.aiid;
+            whiteAiid = null;
         }
         waitingForOpponent = false;
 
@@ -473,8 +473,8 @@ async function doMenuSpectate() {
     try {
         gameId = id;
         playerColor = 'spectator';
-        whiteToken = null;
-        blackToken = null;
+        whiteAiid = null;
+        blackAiid = null;
         waitingForOpponent = false;
 
         showScreen('game');
@@ -1220,12 +1220,12 @@ function deselectPiece() {
 }
 
 async function executeMove(notation) {
-    const token = gameState.current_player === 'white' ? whiteToken : blackToken;
+    const aiid = gameState.current_player === 'white' ? whiteAiid : blackAiid;
     const piece = selectedPieceId ? findPiece(selectedPieceId) : null;
     deselectPiece();
 
     try {
-        const result = await Api.submitMove(gameId, token, notation);
+        const result = await Api.submitMove(gameId, aiid, notation);
 
         if (!result.success) {
             showStatus(`Invalid: ${result.error}`);
@@ -1496,8 +1496,8 @@ function declareSiege() {
 
 function resignGame() {
     if (!gameState || gameState.status !== 'active') return;
-    const token = gameState.current_player === 'white' ? whiteToken : blackToken;
-    Api.resign(gameId, token).then(() => refreshState().then(() => render()));
+    const aiid = gameState.current_player === 'white' ? whiteAiid : blackAiid;
+    Api.resign(gameId, aiid).then(() => refreshState().then(() => render()));
 }
 
 function maybeStartPolling() {

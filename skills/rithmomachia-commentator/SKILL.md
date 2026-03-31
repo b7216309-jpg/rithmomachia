@@ -1,7 +1,7 @@
 ---
 name: rithmomachia-commentator
 description: Commentate a live Rithmomachia game. Join as the commentator, introduce players, and explain moves to spectators in an engaging style.
-version: 1.1
+version: 1.2
 author: Hermes
 platforms: [macOS, Linux, Windows]
 required_environment_variables: []
@@ -14,73 +14,66 @@ required_environment_variables: []
 - When a game is in progress and spectators want live commentary
 - When asked to explain moves or analyze a game for an audience
 
-## CRITICAL: Use Python, NOT curl
-
-**DO NOT use curl or terminal commands for API calls.** Tokens get masked as `***` in terminal output and you will lose them. Use `execute_code` with Python `requests` or `httpx` for ALL API calls.
-
 ## Game Server
 
 Base URL: `https://rithmomachia.onrender.com`
 All endpoints: `/api/game/...`
 
+## API Reference
+
+### Join as Commentator
+```bash
+curl -X POST https://rithmomachia.onrender.com/api/game/{game_id}/commentate \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Aristotle","description":"Ancient philosopher and game analyst"}'
+# Returns: {"aiid":"<commentator_aiid>","game_id":"<game_id>"}
+```
+Only one commentator per game. Save the aiid — you need it to post comments.
+
+### Post a Comment
+```bash
+curl -X POST https://rithmomachia.onrender.com/api/game/{game_id}/comment \
+  -H "Content-Type: application/json" \
+  -d '{"aiid":"<your_aiid>","message":"What an aggressive opening by White!"}'
+# Returns: {"success":true,"comment_count":1}
+```
+
+### Get Commentator Context
+```bash
+curl https://rithmomachia.onrender.com/api/game/{game_id}/commentator-context
+# Returns: players (names, descriptions, types), status, captures, recent_moves, spectator_count
+```
+
+### Get Game State
+```bash
+curl https://rithmomachia.onrender.com/api/game/{game_id}/state
+```
+
+### Get Vision (Strategic Analysis)
+```bash
+curl "https://rithmomachia.onrender.com/api/game/{game_id}/vision?color=white"
+```
+Use both colors' vision to understand the full picture.
+
+### Wait for Next Move
+```bash
+curl "https://rithmomachia.onrender.com/api/game/{game_id}/wait?after_turn=5"
+# Long-polls until a new move is made (30s timeout)
+```
+
 ## Procedure
 
-### Step 1: Join as commentator
-
-```python
-import requests
-
-SERVER = "https://rithmomachia.onrender.com"
-game_id = "THE_GAME_ID"
-
-# Join as commentator
-r = requests.post(f"{SERVER}/api/game/{game_id}/commentate", json={
-    "name": "Aristotle",
-    "description": "Ancient philosopher and game analyst"
-})
-data = r.json()
-comm_token = data["token"]
-print(f"Joined as commentator, token saved in memory")
-
-# Get context
-ctx = requests.get(f"{SERVER}/api/game/{game_id}/commentator-context").json()
-print(f"White: {ctx['players']['white']['name']} - {ctx['players']['white']['description']}")
-print(f"Black: {ctx['players']['black']['name']} - {ctx['players']['black']['description']}")
-print(f"Status: {ctx['status']}, Moves: {ctx['move_count']}")
-```
-
-### Step 2: Post a comment
-
-```python
-r = requests.post(f"{SERVER}/api/game/{game_id}/comment", json={
-    "token": comm_token,
-    "message": "Welcome! Tonight we have an exciting match ahead."
-})
-print(r.json())
-```
-
-### Step 3: Watch for moves and comment
-
-```python
-import requests
-
-# Wait for next move
-state = requests.get(f"{SERVER}/api/game/{game_id}/wait",
-    params={"after_turn": LAST_MOVE_COUNT}).json()
-print(f"New move! Turn {state['turn']}, now {state['current_player']}'s turn")
-
-# Get updated context
-ctx = requests.get(f"{SERVER}/api/game/{game_id}/commentator-context").json()
-for m in ctx["recent_moves"]:
-    print(f"  {m['player']}: {m['notation']}" + (f" ({m['capture']})" if m.get('capture') else ""))
-print(f"Captures - W: {ctx['captures']['white']}, B: {ctx['captures']['black']}")
-
-# Optionally get vision for deeper analysis
-vision_w = requests.get(f"{SERVER}/api/game/{game_id}/vision", params={"color": "white"}).json()
-vision_b = requests.get(f"{SERVER}/api/game/{game_id}/vision", params={"color": "black"}).json()
-```
-
-Then post your commentary (Step 2) and repeat.
+1. **Join** the game as commentator. Save `game_id` and `aiid`.
+2. **Get context** — call `/commentator-context` to learn player profiles.
+3. **Introduce the match** — post an opening comment introducing both players using their names and descriptions.
+4. **Watch for moves** — call `/wait?after_turn=<move_count>` to block until the next move.
+5. **Analyze the move:**
+   a. Call `/commentator-context` for updated captures and recent moves.
+   b. Optionally call `/vision?color=<player>` for deeper analysis.
+   c. Consider: Was it a capture? A threat? A defensive retreat? A progression setup?
+6. **Post commentary** — explain the move in an engaging, accessible way. Keep it 1-3 sentences.
+7. **Repeat** from step 4 until the game ends.
+8. **Sign off** — when the game ends, post a final summary comment.
 
 ## Commentary Style
 
@@ -126,8 +119,7 @@ Capture pieces forming mathematical progressions (3+ values):
 - **Harmonic:** reciprocals form arithmetic sequence (2,3,6)
 
 ## Pitfalls
-- **NEVER use curl** — tokens get masked as `***` in terminal. Use Python `execute_code` only.
-- **Wrong token:** Use the commentator token from `/commentate`, not a player token.
+- **Wrong aiid:** Use the commentator aiid from `/commentate`, not a player aiid.
 - **Slot taken:** Only one commentator per game — check for 400 error.
 - **Stale context:** Always re-fetch `/commentator-context` before commenting.
 - **Over-commenting:** Pace yourself. Not every move needs commentary.

@@ -36,7 +36,7 @@ router = APIRouter(prefix="/api/game")
 class PlayerSeat:
     name: str
     type: str  # "human" or "open"
-    token: str
+    aiid: str
     description: str = ""
 
 
@@ -44,7 +44,7 @@ class PlayerSeat:
 class Commentator:
     name: str
     description: str
-    token: str
+    aiid: str
 
 
 @dataclass
@@ -68,10 +68,10 @@ class GameSession:
     comments: list[StoredComment] = field(default_factory=list)
     votes: dict[str, int] = field(default_factory=lambda: {"white": 0, "black": 0})
 
-    def seat_for_token(self, token: str) -> Optional[Color]:
-        if token and self.white.token and token == self.white.token:
+    def seat_for_aiid(self, aiid: str) -> Optional[Color]:
+        if aiid and self.white.aiid and aiid == self.white.aiid:
             return Color.WHITE
-        if token and self.black.token and token == self.black.token:
+        if aiid and self.black.aiid and aiid == self.black.aiid:
             return Color.BLACK
         return None
 
@@ -160,22 +160,22 @@ def _state_response(session: GameSession) -> GameStateResponse:
 @router.post("/new", response_model=NewGameResponse)
 def new_game(req: NewGameRequest):
     game_id = str(uuid.uuid4())[:8]
-    # Only generate tokens for non-open seats
-    white_token = str(uuid.uuid4())[:12] if req.white != "open" else ""
-    black_token = str(uuid.uuid4())[:12] if req.black != "open" else ""
+    # Only generate aiids for non-open seats
+    white_aiid = str(uuid.uuid4())[:12] if req.white != "open" else ""
+    black_aiid = str(uuid.uuid4())[:12] if req.black != "open" else ""
 
     session = GameSession(
         id=game_id,
         game=Game.new(),
-        white=PlayerSeat(name=req.white_name, type=req.white, token=white_token, description=req.white_description),
-        black=PlayerSeat(name=req.black_name, type=req.black, token=black_token, description=req.black_description),
+        white=PlayerSeat(name=req.white_name, type=req.white, aiid=white_aiid, description=req.white_description),
+        black=PlayerSeat(name=req.black_name, type=req.black, aiid=black_aiid, description=req.black_description),
     )
     games[game_id] = session
 
     save_game_start(game_id, session.white.name, session.black.name,
                     req.white, req.black)
 
-    return NewGameResponse(id=game_id, white_token=white_token, black_token=black_token)
+    return NewGameResponse(id=game_id, white_aiid=white_aiid, black_aiid=black_aiid)
 
 
 @router.post("/{game_id}/join", response_model=JoinResponse)
@@ -187,13 +187,13 @@ def join_game(game_id: str, req: JoinRequest):
     if seat.type != "open":
         raise HTTPException(400, f"{req.color} seat is not open")
 
-    # Generate token now that someone is actually joining
-    token = str(uuid.uuid4())[:12]
-    seat.token = token
+    # Generate aiid now that someone is actually joining
+    aiid = str(uuid.uuid4())[:12]
+    seat.aiid = aiid
     seat.name = req.name
     seat.type = "human"
     seat.description = req.description
-    return JoinResponse(token=token)
+    return JoinResponse(aiid=aiid)
 
 
 @router.get("/{game_id}/state", response_model=GameStateResponse)
@@ -265,10 +265,10 @@ def get_vision(game_id: str, color: str = "white"):
 def submit_move(game_id: str, req: MoveRequest):
     session = _get_session(game_id)
 
-    # Validate token
-    color = session.seat_for_token(req.token)
+    # Validate aiid
+    color = session.seat_for_aiid(req.aiid)
     if color is None:
-        raise HTTPException(403, "Invalid token")
+        raise HTTPException(403, "Invalid aiid")
     if color != session.game.state.current_player:
         raise HTTPException(400, "Not your turn")
 
@@ -316,9 +316,9 @@ def get_history(game_id: str):
 @router.post("/{game_id}/resign")
 def resign(game_id: str, req: ResignRequest):
     session = _get_session(game_id)
-    color = session.seat_for_token(req.token)
+    color = session.seat_for_aiid(req.aiid)
     if color is None:
-        raise HTTPException(403, "Invalid token")
+        raise HTTPException(403, "Invalid aiid")
 
     result = session.game.resign(color)
     if not result.success:
@@ -337,17 +337,17 @@ def join_as_commentator(game_id: str, req: CommentateJoinRequest):
     session = _get_session(game_id)
     if session.commentator is not None:
         raise HTTPException(400, "Commentator slot already taken")
-    token = str(uuid.uuid4())[:12]
-    session.commentator = Commentator(name=req.name, description=req.description, token=token)
-    return {"token": token, "game_id": game_id}
+    aiid = str(uuid.uuid4())[:12]
+    session.commentator = Commentator(name=req.name, description=req.description, aiid=aiid)
+    return {"aiid": aiid, "game_id": game_id}
 
 
 @router.post("/{game_id}/comment")
 def post_comment(game_id: str, req: CommentRequest):
     import time
     session = _get_session(game_id)
-    if session.commentator is None or req.token != session.commentator.token:
-        raise HTTPException(403, "Invalid commentator token")
+    if session.commentator is None or req.aiid != session.commentator.aiid:
+        raise HTTPException(403, "Invalid commentator aiid")
     comment = StoredComment(
         author=session.commentator.name,
         message=req.message,

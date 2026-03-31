@@ -24,12 +24,12 @@ class JoinRequest(BaseModel):
 
 
 class MoveRequest(BaseModel):
-    token: str
+    aiid: str
     notation: str
 
 
 class ResignRequest(BaseModel):
-    token: str
+    aiid: str
 
 
 class CommentateJoinRequest(BaseModel):
@@ -38,7 +38,7 @@ class CommentateJoinRequest(BaseModel):
 
 
 class CommentRequest(BaseModel):
-    token: str
+    aiid: str
     message: str
 
 
@@ -132,12 +132,12 @@ class GameStateResponse(BaseModel):
 
 class NewGameResponse(BaseModel):
     id: str
-    white_token: str
-    black_token: str
+    white_aiid: str
+    black_aiid: str
 
 
 class JoinResponse(BaseModel):
-    token: str
+    aiid: str
 
 
 class MoveResultResponse(BaseModel):

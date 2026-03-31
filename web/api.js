@@ -44,10 +44,10 @@ const Api = {
         return apiCall(`/${gameId}/legal`);
     },
 
-    submitMove(gameId, token, notation) {
+    submitMove(gameId, aiid, notation) {
         return apiCall(`/${gameId}/move`, {
             method: 'POST',
-            body: JSON.stringify({ token, notation }),
+            body: JSON.stringify({ aiid, notation }),
         });
     },
 
@@ -55,10 +55,10 @@ const Api = {
         return apiCall(`/${gameId}/history`);
     },
 
-    resign(gameId, token) {
+    resign(gameId, aiid) {
         return apiCall(`/${gameId}/resign`, {
             method: 'POST',
-            body: JSON.stringify({ token }),
+            body: JSON.stringify({ aiid }),
         });
     },
 
@@ -81,10 +81,10 @@ const Api = {
         });
     },
 
-    postComment(gameId, token, message) {
+    postComment(gameId, aiid, message) {
         return apiCall(`/${gameId}/comment`, {
             method: 'POST',
-            body: JSON.stringify({ token, message }),
+            body: JSON.stringify({ aiid, message }),
         });
     },
 
