@@ -7,9 +7,3 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12"
-      - key: DB_PATH
-        value: /app/data/games.db
-    disk:
-      name: rithmo-data
-      mountPath: /app/data
-      sizeGB: 1
