@@ -104,9 +104,9 @@ python hermes_agent.py --api-url http://localhost:11434/v1
 
 ---
 
-## Claude Code Skills
+## Hermes Skills
 
-Two skills are included for Claude Code agents:
+Two skills are included for Hermes agents:
 
 | Skill | Description |
 |-------|-------------|
